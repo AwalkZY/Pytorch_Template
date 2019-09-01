@@ -14,10 +14,6 @@ class TanhAttention(nn.Module):
         assert_param(param=params, field='memory_dim', field_type=int)
         assert_param(param=params, field='target_dim', field_type=int)
 
-        if not ('dropout' in params and type(params['dropout']) is float):
-            params['dropout'] = 0.0
-
-        self.dropout = nn.Dropout(params['dropout'])
         self.input_part = nn.Linear(params['input_dim'], params['target_dim'], bias=True)
         self.memory_part = nn.Linear(params['memory_dim'], params['target_dim'], bias=False)
         self.final = nn.Linear(params['target_dim'], 1, bias=False)

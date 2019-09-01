@@ -16,10 +16,13 @@ def time_since(since, percent):
     return '%s (- %s)' % (as_minutes(s), as_minutes(rs))
 
 
-def timer():
-    last_time = time.time()
+class Timer(object):
+    def __init__(self):
+        super().__init__()
+        self.last_time = time.time()
 
-    def wrapper():
-        return time.time() - last_time
-
-    return wrapper
+    def time_difference(self):
+        current_time = time.time()
+        difference = current_time - self.last_time
+        self.last_time = current_time
+        return difference
