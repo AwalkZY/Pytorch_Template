@@ -1,5 +1,4 @@
 import torch
-import numpy as np
 
 
 def calculate_dist(x, y, dist='Euclid'):
@@ -19,7 +18,15 @@ def calculate_dist(x, y, dist='Euclid'):
         return 1 - torch.cosine_similarity(x, y, dim=2)  # shape: m*n
 
 
-def sample(data, weight, num_sample, replace=True):
-    weight = weight.cpu().numpy()
-    weight = weight / np.sum(weight)
-    return torch.tensor(np.random.choice(data, num_sample, replace=replace, p=weight))
+def calculate_iou(box0, box1):
+    box0 = box0.contiguous().view(-1, 4)
+    box1 = box1.contiguous().view(-1, 4)
+    l0, t0, r0, b0 = box0[:, 0], box0[:, 1], box0[:, 0] + box0[:, 2], box0[:, 1] + box0[:, 3]
+    l1, t1, r1, b1 = box1[:, 0], box1[:, 1], box1[:, 0] + box1[:, 2], box1[:, 1] + box1[:, 3]
+    width = torch.min(r0, r1) - torch.max(l0, l1)
+    width[width < 0] = 0
+    height = torch.min(b0, b1) - torch.max(t0, t1)
+    height[height < 0] = 0
+    intersection = width * height
+    union = (b0 - t0) * (r0 - l0) + (b1 - t1) * (r1 - l1) - width * height + 1e-15
+    return torch.mean(intersection / union)

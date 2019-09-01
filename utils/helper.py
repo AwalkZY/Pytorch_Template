@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 
 
 def sequence_mask(lengths, max_length, dtype=torch.bool):
@@ -8,3 +9,9 @@ def sequence_mask(lengths, max_length, dtype=torch.bool):
         torch.float32)
     mask = (1 - inter).t().type(dtype)
     return mask
+
+
+def sample(data, weight, num_sample, replace=True):
+    weight = weight.cpu().numpy()
+    weight = weight / np.sum(weight)
+    return torch.tensor(np.random.choice(data, num_sample, replace=replace, p=weight))
