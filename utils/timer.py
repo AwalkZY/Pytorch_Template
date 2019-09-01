@@ -14,3 +14,12 @@ def time_since(since, percent):
     es = s / percent
     rs = es - s
     return '%s (- %s)' % (as_minutes(s), as_minutes(rs))
+
+
+def timer():
+    last_time = time.time()
+
+    def wrapper():
+        return time.time() - last_time
+
+    return wrapper
