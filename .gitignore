@@ -1,8 +1,7 @@
 
 # DIY
 target/
-Config.*
-config/COCO/*.json
+dataset/
 
 # svn
 .svn/
