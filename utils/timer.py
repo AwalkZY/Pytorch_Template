@@ -20,9 +20,13 @@ class Timer(object):
     def __init__(self):
         super().__init__()
         self.last_time = time.time()
+        self.start_time = time.time()
 
-    def time_difference(self):
+    def time_difference(self, percentage=-1.0):
         current_time = time.time()
         difference = current_time - self.last_time
         self.last_time = current_time
-        return difference
+        if percentage < 0:
+            return difference
+        else:
+            return 'Running Time: {} ({}%)'.format(time_since(self.start_time, percentage), percentage * 100)

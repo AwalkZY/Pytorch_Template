@@ -1,4 +1,6 @@
 import json
+import os
+
 import torch
 
 
@@ -20,3 +22,9 @@ def save_model(model, path):
 def load_model(model, path):
     print('Model loaded from path: {}'.format(path))
     model.load_state_dict(torch.load(path))
+
+
+def create_file(path):
+    if not os.path.exists(path):
+        f = open(path, 'w')
+        f.close()

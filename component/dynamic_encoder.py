@@ -23,13 +23,15 @@ class DynamicEncoder(nn.Module):
         assert_param(param=params, field='is_bidirectional', field_type=bool)
 
         super().__init__()
-        self.params = default_params.update(params)
+        params.update(default_params)
+        self.params = params
         self.rnn = nn.GRU(input_size=self.params['input_dim'],
                           hidden_size=self.params['hidden_dim'],
                           num_layers=self.params['layer_num'],
                           dropout=self.params['rnn_drop_prob'],
                           batch_first=True,
                           bidirectional=self.params['is_bidirectional'])
+        self.rnn.flatten_parameters()
 
     def forward(self, input_sequence, input_lengths, state):
         """

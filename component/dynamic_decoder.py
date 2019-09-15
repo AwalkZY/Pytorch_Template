@@ -27,7 +27,8 @@ class DynamicDecoder(nn.Module):
         assert_param(param=params, field='is_bidirectional', field_type=bool)
 
         super().__init__()
-        self.params = default_params.update(params)
+        params.update(default_params)
+        self.params = params
         self.rnn = nn.GRU(input_size=self.params['input_dim'],
                           hidden_size=self.params['hidden_dim'],
                           num_layers=self.params['num_layers'],
@@ -41,6 +42,8 @@ class DynamicDecoder(nn.Module):
         }) if self.params['use_attention'] else None
         self.mixture = nn.Linear(self.params['hidden_dim'], self.params['hidden_dim']) \
             if not self.params['use_attention'] else None
+
+        self.rnn.flatten_parameters()
 
     def forward(self, input_sequences, input_lengths, state, encoder_outputs=None):
         """
