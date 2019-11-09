@@ -15,8 +15,10 @@ default_params = {
 
 
 class DynamicDecoder(nn.Module):
-    def __init__(self, param_name):
-        params = configOrganizer.fetch_config(param_name)
+    def __init__(self, params):
+        assert type(params) in [dict, str], "Invalid Parameter Type!"
+        if type(params) is str:
+            params = configOrganizer.fetch_config(params)
 
         assert_param(param=params, field='hidden_dim', field_type=int)
         assert_param(param=params, field='use_attention', field_type=bool)
@@ -42,7 +44,6 @@ class DynamicDecoder(nn.Module):
         }) if self.params['use_attention'] else None
         self.mixture = nn.Linear(self.params['hidden_dim'], self.params['hidden_dim']) \
             if not self.params['use_attention'] else None
-
         self.rnn.flatten_parameters()
 
     def forward(self, input_sequences, input_lengths, state, encoder_outputs=None):
@@ -53,9 +54,9 @@ class DynamicDecoder(nn.Module):
         :param encoder_outputs: encoder outputs from Encoder, in shape (batch_size, time_step, hidden_dim)
         :return:
             output: output of current unit in shape (batch_size, time_step, hidden_dim)
-            state: current hidden state
+            state: current hidden state (direction_num, batch_size, hidden_dim)
         """
-        intermediate_result = self.attention(input_sequences, encoder_outputs, input_lengths) \
+        intermediate_result, attention_weight = self.attention(input_sequences, encoder_outputs, input_lengths) \
             if self.params['use_attention'] else self.mixture(input_sequences)
         max_num_steps = intermediate_result.size(1)
         input_lengths, sorted_indices = torch.sort(input_lengths, descending=True)
@@ -81,7 +82,7 @@ class DynamicDecoder(nn.Module):
                 output: output of current unit in shape (batch_size, 1, hidden_dim)
                 state: current hidden state
         """
-        intermediate_result = self.attention(inputs, encoder_outputs) \
+        intermediate_result, attention_weight = self.attention(inputs, encoder_outputs) \
             if self.params['use_attention'] else self.mixture(inputs)
         output, state = self.rnn(intermediate_result, state)
         return output, state

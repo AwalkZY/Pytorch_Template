@@ -1,5 +1,6 @@
 import json
 import os
+import pickle
 
 import torch
 
@@ -28,3 +29,13 @@ def create_file(path):
     if not os.path.exists(path):
         f = open(path, 'w')
         f.close()
+
+
+def save_pickle(obj, filename):
+    with open(filename, "wb") as pickle_file:
+        pickle.dump(obj, pickle_file)
+
+
+def load_pickle(filename):
+    with open(filename, "rb") as pickle_file:
+        return pickle.load(pickle_file)

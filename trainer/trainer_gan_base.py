@@ -2,7 +2,7 @@ class BaseTrainer(object):
     def __init__(self):
         super().__init__()
 
-    def train(self, *inputs):
+    def train(self):
         raise NotImplementedError
 
     def generator_train(self, *inputs):

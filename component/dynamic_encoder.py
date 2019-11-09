@@ -14,8 +14,10 @@ default_params = {
 
 
 class DynamicEncoder(nn.Module):
-    def __init__(self, param_name):
-        params = configOrganizer.fetch_config(param_name)
+    def __init__(self, params):
+        assert type(params) in [dict, str], "Invalid Parameter Type!"
+        if type(params) is str:
+            params = configOrganizer.fetch_config(params)
 
         assert_param(param=params, field='hidden_dim', field_type=int)
         assert_param(param=params, field='input_dim', field_type=int)

@@ -1,9 +1,9 @@
-class BaseTrainer(object):
+class BaseExtractor(object):
     def __init__(self):
         super().__init__()
 
-    def train(self):
+    def extract_all(self):
         raise NotImplementedError
 
-    def evaluate(self):
+    def extract_item(self, *inputs):
         raise NotImplementedError
