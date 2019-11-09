@@ -101,6 +101,7 @@ def calculate_iou1d(pred_head, pred_tail, true_head, true_tail):
 
 def find_intersection(set_1, set_2):
     """
+    Corner-Corner
     Find the intersection of every box combination between two sets of boxes that are in boundary coordinates.
     :param set_1: set 1, a tensor of dimensions (n1, 4)
     :param set_2: set 2, a tensor of dimensions (n2, 4)
@@ -116,6 +117,7 @@ def find_intersection(set_1, set_2):
 
 def find_jaccard_overlap(set_1, set_2):
     """
+    Corner-Corner
     Find the Jaccard Overlap (IoU) of every box combination between two sets of boxes that are in boundary coordinates.
     :param set_1: set 1, a tensor of dimensions (n1, 4)
     :param set_2: set 2, a tensor of dimensions (n2, 4)
