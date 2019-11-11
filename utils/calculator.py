@@ -56,7 +56,7 @@ def calculate_intersection2d(box0, box1, method="Corner_Corner"):
     return intersection
 
 
-def calculate_union2d(box0, box1):
+def calculate_union2d(box0, box1, method="Corner_Corner"):
     box0 = box0.contiguous().view(-1, 4)
     box1 = box1.contiguous().view(-1, 4)
     if method == "Corner_Length":
