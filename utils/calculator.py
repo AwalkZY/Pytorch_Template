@@ -3,7 +3,7 @@ import numpy as np
 
 
 def calculate_dist(x, y, dist):
-    assert x.size(-1) == y.size(-1), "Incompatible dimension of two matrix! {} and {} are given. ".format(x.size(),
+    assert x.size(-1) == y.size(-1), "Incompatible dimension of two matrix! {} and {} are given. ".method(x.size(),
                                                                                                           y.size())
     assert dist in ['Euclid', 'Cosine'], "Invalid distance criterion!"
     d = x.size(-1)
@@ -38,14 +38,14 @@ def calculate_iou3d(box0, box1):
     return intersections / unions
 
 
-def calculate_intersection2d(box0, box1, format="Corner_Corner"):
-    assert format in ["Corner_Corner", "Corner_Length"], "Invalid Format of Measurement!"
+def calculate_intersection2d(box0, box1, method="Corner_Corner"):
+    assert method in ["Corner_Corner", "Corner_Length"], "Invalid Format of Measurement!"
     box0 = box0.contiguous().view(-1, 4)
     box1 = box1.contiguous().view(-1, 4)
-    if format == "Corner_Length":
+    if method == "Corner_Length":
         l0, t0, r0, b0 = box0[:, 0], box0[:, 1], box0[:, 0] + box0[:, 2], box0[:, 1] + box0[:, 3]
         l1, t1, r1, b1 = box1[:, 0], box1[:, 1], box1[:, 0] + box1[:, 2], box1[:, 1] + box1[:, 3]
-    elif format == "Corner_Corner":
+    elif method == "Corner_Corner":
         l0, t0, r0, b0 = box0[:, 0], box0[:, 1], box0[:, 2], box0[:, 3]
         l1, t1, r1, b1 = box1[:, 0], box1[:, 1], box1[:, 2], box1[:, 3]
     width = torch.min(r0, r1) - torch.max(l0, l1)
@@ -59,10 +59,10 @@ def calculate_intersection2d(box0, box1, format="Corner_Corner"):
 def calculate_union2d(box0, box1):
     box0 = box0.contiguous().view(-1, 4)
     box1 = box1.contiguous().view(-1, 4)
-    if format == "Corner_Length":
+    if method == "Corner_Length":
         l0, t0, r0, b0 = box0[:, 0], box0[:, 1], box0[:, 0] + box0[:, 2], box0[:, 1] + box0[:, 3]
         l1, t1, r1, b1 = box1[:, 0], box1[:, 1], box1[:, 0] + box1[:, 2], box1[:, 1] + box1[:, 3]
-    elif format == "Corner_Corner":
+    elif method == "Corner_Corner":
         l0, t0, r0, b0 = box0[:, 0], box0[:, 1], box0[:, 2], box0[:, 3]
         l1, t1, r1, b1 = box1[:, 0], box1[:, 1], box1[:, 2], box1[:, 3]
     width = torch.min(r0, r1) - torch.max(l0, l1)
