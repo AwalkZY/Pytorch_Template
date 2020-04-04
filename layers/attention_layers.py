@@ -53,13 +53,15 @@ class ScaledDotProductAttention(nn.Module):
     # Key: [batch_size, time_step, key_len, key_dim]
     # Value: [batch_size, time_step, key_len, value_dim]
     # Key_mask: [batch_size, time_step, key_len]
-    def forward(self, query, key, value, key_mask=None):
+    def forward(self, query, key, value, key_mask=None, dropout=None):
         out = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(query.size(-1))
         # Out: [batch_size, time_step, query_len, key_len]
         if key_mask is not None:
             key_mask = key_mask.unsqueeze(2)   # Key_mask: [batch_size, time_step, 1, key_len]
             out = out.masked_fill(key_mask == 0, -1e30)
         attn = F.softmax(out, dim=-1)
+        if dropout is not None:
+            attn = dropout(attn)
         return torch.matmul(attn, value), attn
 
 
@@ -67,31 +69,37 @@ class MultiHeadAttention(nn.Module):
     def __init__(self, params):
         super().__init__()
         assert_param(param=params, field='head_num', field_type=int)
-        assert_param(param=params, field='key_dim', field_type=int)
-        assert_param(param=params, field='value_dim', field_type=int)
+        assert_param(param=params, field='input_dim', field_type=int)
+        assert params['input_dim'] % params['head_num'] == 0
+        if 'dropout' not in params:
+            params['dropout'] = 0
 
         self.params = params
-        self.query_head = nn.Linear(params['key_dim'], params['key_dim'] * params['head_num'])
-        self.key_head = nn.Linear(params['key_dim'], params['key_dim'] * params['head_num'])
-        self.value_head = nn.Linear(params['value_dim'], params['value_dim'] * params['head_num'])
+        self.hidden_dim = params['input_dim'] // params['head_num']
+        self.query_head = nn.Linear(params['input_dim'], params['input_dim'])
+        self.key_head = nn.Linear(params['input_dim'], params['input_dim'])
+        self.value_head = nn.Linear(params['input_dim'], params['input_dim'])
         self.attention = ScaledDotProductAttention()
-        self.out = nn.Linear(params['value_dim'] * params['head_num'], params['value_dim'])
+        self.dropout = nn.Dropout(p=params['dropout'])
+        self.out = nn.Linear(params['input_dim'], params['input_dim'])
 
-    # Query: [batch_size, time_step, query_len, key_dim]
-    # Key: [batch_size, time_step, key_len, key_dim]
-    # Value: [batch_size, time_step, key_len, value_dim]
+    # Query: [batch_size, time_step, query_len, input_dim]
+    # Key: [batch_size, time_step, key_len, input_dim]
+    # Value: [batch_size, time_step, key_len, input_dim]
     # Key_mask: [batch_size, time_step, key_len]
     def forward(self, query_input, key_input, value_input, key_mask=None):
         batch_size = query_input.size(0)
+        if key_mask is not None:
+            key_mask = key_mask.unsqueeze(dim=1)
+            # key_mask = key_mask.unsqueeze(dim=1).view(batch_size, 1, -1).repeat(1, self.params['head_num'], 1)
         multi_head_query = self.query_head(query_input).contiguous().view(batch_size, -1, self.params['head_num'],
-                                                                          self.params['key_dim']).transpose(1, 2)
+                                                                          self.params['hidden_dim']).transpose(1, 2)
         multi_head_key = self.key_head(key_input).contiguous().view(batch_size, -1, self.params['head_num'],
-                                                                    self.params['key_dim']).transpose(1, 2)
+                                                                    self.params['hidden_dim']).transpose(1, 2)
         multi_head_value = self.value_head(value_input).contiguous().view(batch_size, -1, self.params['head_num'],
-                                                                          self.params['value_dim']).transpose(1, 2)
-        key_mask = key_mask.unsqueeze(dim=1).view(batch_size, 1, -1).repeat(1, self.params['head_num'], 1)
-        ans, attn_weight = self.attention(multi_head_query, multi_head_key, multi_head_value, key_mask)
-        ans = ans.transpose(1, 2).contiguous().view(batch_size, -1, self.params['value_dim'] * self.params['head_num'])
+                                                                          self.params['hidden_dim']).transpose(1, 2)
+        ans, attn_weight = self.attention(multi_head_query, multi_head_key, multi_head_value, key_mask, dropout=self.dropout)
+        ans = ans.transpose(1, 2).contiguous().view(batch_size, -1, self.params['hidden_dim'] * self.params['head_num'])
         # Return: [batch_size, time_step, query_len, value_dim]
         return self.out(ans), attn_weight
 
@@ -105,9 +113,10 @@ class SelfAttentionWithMultiHead(nn.Module):
         self.params = params
         self.attention = MultiHeadAttention({
             'head_num': params['head_num'],
-            'key_dim': params['input_dim'],
-            'value_dim': params['input_dim']
+            'input_dim': params['input_dim']
         })
+        self.attention_weight = None
 
     def forward(self, inputs, input_mask=None):
-        return self.attention(inputs, inputs, inputs, input_mask)
+        ans, self.attention_weight = self.attention(inputs, inputs, inputs, input_mask)
+        return ans

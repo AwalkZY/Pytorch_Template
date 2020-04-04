@@ -17,6 +17,7 @@ def tokenize(sentence, word2vec=None):
 
 
 def clones(module, number):
+    """Produce N identical layers."""
     return nn.ModuleList([copy.deepcopy(module) for _ in range(number)])
 
 

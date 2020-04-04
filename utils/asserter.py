@@ -6,5 +6,4 @@ def assert_param(param, field, field_type):
 
 def assert_size(variable, variable_name, target_size):
     assert variable.size() == target_size, \
-        'The shape of variable {} is expected to be {}, but it\'s {} here instead.'.format(variable_name, target_size,
-                                                                                           variable.size())
+        'The shape of variable {} is expected to be {}, but it\'s {} here instead.'.format(variable_name, target_size,                                                                             variable.size())

@@ -7,25 +7,34 @@ from utils.asserter import assert_param
 
 
 class PositionEncoder(nn.Module):
+    """Implement the PE function."""
     def __init__(self, params):
-        super().__init__()
         assert_param(param=params, field_type=int, field="input_dim")
-        assert_param(param=params, field_type=int, field="length")
-        input_dim, length = params["input_dim"], params["length"]
-        frequency = torch.tensor(
-            [10000 ** (-i / input_dim) if i % 2 == 0 else -10000 ** ((1 - i) / input_dim) for i in range(input_dim)]) \
-            .unsqueeze(dim=1)
-        phases = torch.tensor([0 if i % 2 == 0 else math.pi / 2 for i in range(input_dim)]).unsqueeze(dim=1)
-        pos = torch.arange(length).repeat(input_dim, 1).float()
-        self.pos_encoding = torch.sin(torch.add(torch.mul(pos, frequency), phases))
-        self.pos_encoding = self.pos_encoding.transpose(1, 0)
-        self.pos_encoding = nn.Parameter(self.pos_encoding, requires_grad=False)
+        if "dropout" not in params:
+            params["dropout"] = 0.0
+        if "max_len" not in params:
+            params["max_len"] = 5000
+        super().__init__()
+        self.dropout = nn.Dropout(p=params['dropout'])
+
+        # Compute the positional encodings once in log space.
+        pos_encoding = torch.zeros(params['max_len'], params['input_dim'])
+        position = torch.arange(0, params['max_len']).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, params['input_dim'], 2) *
+                             -(math.log(10000.0) / params['input_dim']))
+        pos_encoding[:, 0::2] = torch.sin(position * div_term)
+        pos_encoding[:, 1::2] = torch.cos(position * div_term)
+        pos_encoding = pos_encoding.unsqueeze(0).clone().detach().requires_grad_(False)
+        self.register_buffer('pos_encoding', pos_encoding)
 
     def forward(self, x):
-        return x + self.pos_encoding
+        x = x + self.pos_encoding[:, :x.size(1)]
+        return self.dropout(x)
 
 
 class PositionWiseFeedForward(nn.Module):
+    """Implements FFN equation."""
+
     def __init__(self, params):
         super().__init__()
         assert_param(param=params, field_type=int, field="input_dim")
@@ -42,3 +51,18 @@ class PositionWiseFeedForward(nn.Module):
         x = self.dropout(x)
         x = self.linear2(x)
         return x
+
+
+if __name__ == "__main__":
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    plt.figure(figsize=(15, 5))
+    pe = PositionEncoder({
+        "input_dim": 20,
+        "length": 5000
+    })
+    y = pe.forward(torch.zeros(1, 100, 20))
+    plt.plot(np.arange(100), y[0, :, 4:8].data.numpy())
+    plt.legend(["dim %d" % p for p in [4, 5, 6, 7]])
+    plt.show()
