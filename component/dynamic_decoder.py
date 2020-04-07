@@ -56,7 +56,7 @@ class DynamicDecoder(nn.Module):
             output: output of current unit in shape (batch_size, time_step, hidden_dim)
             state: current hidden state (direction_num, batch_size, hidden_dim)
         """
-        intermediate_result, attention_weight = self.attention(input_sequences, encoder_outputs, input_lengths) \
+        intermediate_result = self.attention(input_sequences, encoder_outputs, input_lengths) \
             if self.params['use_attention'] else self.mixture(input_sequences)
         max_num_steps = intermediate_result.size(1)
         input_lengths, sorted_indices = torch.sort(input_lengths, descending=True)
@@ -82,7 +82,7 @@ class DynamicDecoder(nn.Module):
                 output: output of current unit in shape (batch_size, 1, hidden_dim)
                 state: current hidden state
         """
-        intermediate_result, attention_weight = self.attention(inputs, encoder_outputs) \
+        intermediate_result = self.attention(inputs, encoder_outputs) \
             if self.params['use_attention'] else self.mixture(inputs)
         output, state = self.rnn(intermediate_result, state)
         return output, state

@@ -4,10 +4,10 @@ import torch
 import torch.nn.functional as F
 
 from layers.attention_layers import SelfAttentionWithMultiHead
-from layers.position_layers import PositionWiseFeedForward
+from layers.position_layers import PositionWiseFeedForward, PositionEncoder
 from utils.asserter import assert_param
 from utils.organizer import configOrganizer
-from utils.processor import clones
+from utils.helper import clones
 from layers.blocks import LayerNormResidualBlock
 
 
@@ -17,7 +17,7 @@ class EncoderFromLayer(nn.Module):
     def __init__(self, layer, number):
         super().__init__()
         self.layers = clones(layer, number)
-        self.norm = nn.LayerNorm(layer.size)
+        self.norm = nn.LayerNorm(layer.input_dim)
 
     def forward(self, x, mask):
         for layer in self.layers:
@@ -31,7 +31,7 @@ class DecoderFromLayer(nn.Module):
     def __init__(self, layer, number):
         super().__init__()
         self.layers = clones(layer, number)
-        self.norm = nn.LayerNorm(layer.size)
+        self.norm = nn.LayerNorm(layer.input_dim)
 
     def forward(self, x, memory, source_mask, target_mask):
         for layer in self.layers:
@@ -42,37 +42,47 @@ class DecoderFromLayer(nn.Module):
 class EncoderLayer(nn.Module):
     """Encoder is made up of self-attn and feed forward (defined below)"""
 
-    def __init__(self, size, self_attn, feed_forward=None, dropout=0.0):
+    def __init__(self, input_dim, self_attn, feed_forward=None, dropout=0.0):
         super().__init__()
-        self.size = size
+        self.input_dim = input_dim
+        self.position_encoder = PositionEncoder({
+            "input_dim": input_dim
+        })
         self.self_attn = LayerNormResidualBlock(layer=self_attn,
-                                                size=self.size,
+                                                input_dim=self.input_dim,
                                                 drop_ratio=dropout)
         self.feed_forward = LayerNormResidualBlock(layer=feed_forward,
-                                                   size=self.size,
+                                                   input_dim=self.input_dim,
                                                    drop_ratio=dropout)
 
-    def forward(self, x, mask):
+    def forward(self, x, mask, positional_encoding=True):
+        if positional_encoding:
+            x = self.position_encoder(x)
         x = self.self_attn(x, mask)
         x = self.feed_forward(x)
         return x
 
 
 class DecoderLayer(nn.Module):
-    def __init__(self, size, self_attn, source_attn, feed_forward=None, dropout=0.0):
+    def __init__(self, input_dim, self_attn, source_attn, feed_forward=None, dropout=0.0):
         super().__init__()
-        self.size = size
+        self.input_dim = input_dim
+        self.position_encoder = PositionEncoder({
+            "input_dim": input_dim
+        })
         self.self_attn = LayerNormResidualBlock(layer=self_attn,
-                                                size=self.size,
+                                                input_dim=self.input_dim,
                                                 drop_ratio=dropout)
         self.feed_forward = LayerNormResidualBlock(layer=feed_forward,
-                                                   size=self.size,
+                                                   input_dim=self.input_dim,
                                                    drop_ratio=dropout)
         self.source_attn = LayerNormResidualBlock(layer=source_attn,
-                                                  size=self.size,
+                                                  input_dim=self.input_dim,
                                                   drop_ratio=dropout)
 
-    def forward(self, x, memory, source_mask, target_mask):
+    def forward(self, x, memory, source_mask, target_mask, positional_encoding=True):
+        if positional_encoding:
+            x = self.position_encoder(x)
         x = self.self_attn(x, target_mask)
         x = self.source_attn(x, memory, memory, source_mask)
         x = self.feed_forward(x)
@@ -86,21 +96,8 @@ default_params = {
 }
 
 
-class Embeddings(nn.Module):
-    def __init__(self, params):
-        super().__init__()
-        assert_param(param=params, field_type=int, field="embedding_dim")
-        assert_param(param=params, field_type=int, field="vocab")
-
-        self.params = params
-        self.embedding_layer = nn.Embedding(params['vocab'], params['embedding_dim'])
-
-    def forward(self, x):
-        return self.embedding_layer(x) * math.sqrt(self.params['embedding_dim'])
-
-
 # Source and Target should be embedded into the same dimension
-class Transformer(nn.Module):
+class TransformerCore(nn.Module):
     def __init__(self, params):
         super().__init__()
         assert type(params) in [dict, str], "Invalid Parameter Type!"
@@ -144,10 +141,36 @@ class Transformer(nn.Module):
                                                      })),
                                         self.params["decoder_layers_num"])
 
-    def forward(self, source, source_mask, target, target_mask):
-        x = self.encoder(source, source_mask)  # [nb, len1, hid]
-        x = self.decoder(target, x, source_mask, target_mask)  # [nb, len2, hid]
-        return x
+    def forward(self, source, source_mask, target, target_mask, positional_encoding=True):
+        encoding = self.encoder(source, source_mask, positional_encoding)  # [nb, len1, hid]
+        x = self.decoder(target, encoding, source_mask, target_mask, positional_encoding)  # [nb, len2, hid]
+        return x, encoding
 
-    def encode(self, source, source_mask):
-        return self.encoder(source, source_mask)
+    def encode(self, source, source_mask, positional_encoding=True):
+        return self.encoder(source, source_mask, positional_encoding)
+
+
+class Any2SentenceTransformer(TransformerCore):
+    def __init__(self, params):
+        assert type(params) in [dict, str], "Invalid Parameter Type!"
+        if type(params) is str:
+            params = configOrganizer.fetch_config(params)
+        super().__init__(params)
+
+        assert_param(param=params, field='input_dim', field_type=int)
+        assert_param(param=params, field='target_vocab', field_type=int)
+        if "share_embedding" not in params:
+            params["share_embedding"] = True
+
+        self.out = nn.Linear(params['input_dim'], params['target_vocab'])
+        if self.params["share_embedding"]:
+            self.embedding_weight = self.out.weight * math.sqrt(params['input_dim'])
+        else:
+            self.embedding_layer = nn.Embedding(params['target_vocab'], params['input_dim'])
+            self.embedding_weight = self.embedding_layer.weight
+
+    def forward(self, source, source_mask, target, target_mask, positional_encoding=True):
+        target = F.embedding(target, self.embedding_weight)
+        result, encoding = super().forward(source, source_mask, target, target_mask, positional_encoding)
+        scores = F.softmax(self.out(result), dim=-1)
+        return scores, encoding

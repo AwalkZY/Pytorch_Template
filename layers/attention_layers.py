@@ -17,6 +17,7 @@ class TanhAttention(nn.Module):
         self.input_part = nn.Linear(params['input_dim'], params['target_dim'], bias=True)
         self.memory_part = nn.Linear(params['memory_dim'], params['target_dim'], bias=False)
         self.final = nn.Linear(params['target_dim'], 1, bias=False)
+        self.attention_weight = None
 
     def forward(self, inputs, memory, input_lengths=None, memory_lengths=None):
         inputs_compact = inputs.view(-1, inputs.size(-2), inputs.size(-1))
@@ -41,13 +42,14 @@ class TanhAttention(nn.Module):
         attention_weight = F.softmax(attention_score, -1)
         attention_result = torch.matmul(attention_weight,
                                         memory_compact).view(result_shape)
-        attention_weight = attention_weight.view(score_shape)
-        return attention_result, attention_weight  # [batch_size, input_length, target_dimension]
+        self.attention_weight = attention_weight.view(score_shape)
+        return attention_result  # [batch_size, input_length, target_dimension]
 
 
 class ScaledDotProductAttention(nn.Module):
     def __init__(self):
         super().__init__()
+        self.attention_weight = None
 
     # Query: [batch_size, time_step, query_len, key_dim]
     # Key: [batch_size, time_step, key_len, key_dim]
@@ -62,7 +64,8 @@ class ScaledDotProductAttention(nn.Module):
         attn = F.softmax(out, dim=-1)
         if dropout is not None:
             attn = dropout(attn)
-        return torch.matmul(attn, value), attn
+        self.attention_weight = attn
+        return torch.matmul(attn, value)
 
 
 class MultiHeadAttention(nn.Module):
@@ -75,18 +78,19 @@ class MultiHeadAttention(nn.Module):
             params['dropout'] = 0
 
         self.params = params
-        self.hidden_dim = params['input_dim'] // params['head_num']
+        self.params['hidden_dim'] = params['input_dim'] // params['head_num']
         self.query_head = nn.Linear(params['input_dim'], params['input_dim'])
         self.key_head = nn.Linear(params['input_dim'], params['input_dim'])
         self.value_head = nn.Linear(params['input_dim'], params['input_dim'])
         self.attention = ScaledDotProductAttention()
         self.dropout = nn.Dropout(p=params['dropout'])
         self.out = nn.Linear(params['input_dim'], params['input_dim'])
+        self.attention_weight = None
 
-    # Query: [batch_size, time_step, query_len, input_dim]
-    # Key: [batch_size, time_step, key_len, input_dim]
-    # Value: [batch_size, time_step, key_len, input_dim]
-    # Key_mask: [batch_size, time_step, key_len]
+    # Query: [batch_size, time_step, input_dim]
+    # Key: [batch_size, time_step, input_dim]
+    # Value: [batch_size, time_step, input_dim]
+    # Key_mask: [batch_size, time_step]
     def forward(self, query_input, key_input, value_input, key_mask=None):
         batch_size = query_input.size(0)
         if key_mask is not None:
@@ -98,10 +102,11 @@ class MultiHeadAttention(nn.Module):
                                                                     self.params['hidden_dim']).transpose(1, 2)
         multi_head_value = self.value_head(value_input).contiguous().view(batch_size, -1, self.params['head_num'],
                                                                           self.params['hidden_dim']).transpose(1, 2)
-        ans, attn_weight = self.attention(multi_head_query, multi_head_key, multi_head_value, key_mask, dropout=self.dropout)
+        ans = self.attention(multi_head_query, multi_head_key, multi_head_value, key_mask, dropout=self.dropout)
+        self.attention_weight = self.attention.attention_weight
         ans = ans.transpose(1, 2).contiguous().view(batch_size, -1, self.params['hidden_dim'] * self.params['head_num'])
-        # Return: [batch_size, time_step, query_len, value_dim]
-        return self.out(ans), attn_weight
+        # Return: [batch_size, time_step, value_dim]
+        return self.out(ans)
 
 
 class SelfAttentionWithMultiHead(nn.Module):
@@ -118,5 +123,6 @@ class SelfAttentionWithMultiHead(nn.Module):
         self.attention_weight = None
 
     def forward(self, inputs, input_mask=None):
-        ans, self.attention_weight = self.attention(inputs, inputs, inputs, input_mask)
+        ans = self.attention(inputs, inputs, inputs, input_mask)
+        self.attention_weight = self.attention.attention_weight
         return ans

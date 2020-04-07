@@ -1,6 +1,13 @@
 import torch
 from torch import nn
 import numpy as np
+import copy
+from utils.accessor import load_json
+
+
+def clones(module, number):
+    """Produce N identical layers."""
+    return nn.ModuleList([copy.deepcopy(module) for _ in range(number)])
 
 
 def sequence_mask(lengths, max_length, dtype=torch.bool):
@@ -10,6 +17,13 @@ def sequence_mask(lengths, max_length, dtype=torch.bool):
     inter = torch.ones((len(lengths), max_length)).to(device=lengths.device).cumsum(dim=1).t() > lengths.type(
         torch.float32)
     mask = (1 - inter).t().type(dtype)
+    return mask
+
+
+def no_peak_mask(length):
+    """Generate mask to avoid Attention Modules attend to unpredicted positions"""
+    np_mask = np.triu(np.ones((1, length, length)), k=1).astype('uint8')
+    mask = torch.from_numpy(np_mask) == 0
     return mask
 
 

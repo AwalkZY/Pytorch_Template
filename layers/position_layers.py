@@ -60,7 +60,7 @@ if __name__ == "__main__":
     plt.figure(figsize=(15, 5))
     pe = PositionEncoder({
         "input_dim": 20,
-        "length": 5000
+        "max_len": 5000
     })
     y = pe.forward(torch.zeros(1, 100, 20))
     plt.plot(np.arange(100), y[0, :, 4:8].data.numpy())
