@@ -35,6 +35,9 @@ class Debugger:
     def debug(self, *inputs):
         self.logger.debug(inputs)
 
+    def print_divider(self):
+        self.info("=" * 60)
+
     def exception(self, *inputs):
         self.logger.exception(inputs)
 

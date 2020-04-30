@@ -15,7 +15,7 @@ def init_vars(model, source, source_mask, target_vocab, k, max_len):
     init_token = target_vocab.stoi('<BOS>')
     target = torch.tensor([[init_token]]).long()
     target_mask = no_peak_mask(1)
-    scores, encoding = model.forward(source, source_mask, target, target_mask)
+    result, scores, encoding = model.forward(source, source_mask, target, target_mask, positional_encoding=True)
     # scores in shape (batch_size == 1, sentence_length, vocab_size)
     # Here we do the slice operation on the "sentence_length" dimension
     k_scores, idx = scores[:, -1].data.topk(k)
@@ -51,7 +51,7 @@ def beam_search(model, source, source_mask, target_vocab, k, max_len):
     idx = None
     for i in range(2, max_len):
         target_mask = no_peak_mask(i)
-        scores = model.forward(source, source_mask, targets[:, :i], target_mask)
+        result, scores, encoding = model.forward(source, source_mask, targets[:, :i], target_mask, positional_encoding=True)
         targets, log_scores = find_k_best(targets, scores, log_scores, i, k)
         end_pos = (targets == eos_token).nonzero()
         sentence_lengths = torch.zeros(len(targets), dtype=torch.long).to(source.device)

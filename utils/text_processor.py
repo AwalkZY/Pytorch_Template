@@ -1,11 +1,12 @@
 import nltk
 from torch import nn
+import numpy as np
 
 
 def tokenize(sentence, use_prototype=False, word2vec=None):
     if type(sentence) is not str:
         return []
-    punctuations = ['.', '?', ',', '', '(', ')', '!', ":"]
+    punctuations = ['.', '?', ',', '', '(', ')', '!', ':', '…']
     raw_text = sentence.lower()
     words = nltk.word_tokenize(raw_text)
     if use_prototype:
@@ -40,6 +41,8 @@ class Vocabulary(object):
         super(Vocabulary, self).__init__()
         self.word2ind = word2ind
         self.ind2word = ind2word
+        self.max_word_id = max(list(self.ind2word.keys()))
+        self.word_num = self.max_word_id + 1
 
     def stoi(self, word):
         if word in self.word2ind:
@@ -52,6 +55,24 @@ class Vocabulary(object):
             return self.ind2word[index]
         else:
             return '<UNK>'
+
+    def itoa(self, index):
+        if index > self.max_word_id:
+            return self.itoa(self.stoi('<UNK>'))
+        one_hot = np.zeros(self.max_word_id)
+        one_hot[index] = 1
+        return one_hot
+
+    def stoa(self, word):
+        return self.itoa(self.stoi(word))
+
+    @property
+    def MASK(self):
+        return self.stoi('<MASK>')
+
+    @property
+    def PAD(self):
+        return self.stoi('<PAD>')
 
 
 if __name__ == "__main__":

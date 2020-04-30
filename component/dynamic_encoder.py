@@ -4,7 +4,7 @@ import torch.nn.utils as utils
 import torch.nn.functional as F
 
 from utils.asserter import assert_param
-from utils.organizer import configOrganizer
+from utils.container import configContainer
 
 default_params = {
     "layer_num": 1,
@@ -17,7 +17,7 @@ class DynamicEncoder(nn.Module):
     def __init__(self, params):
         assert type(params) in [dict, str], "Invalid Parameter Type!"
         if type(params) is str:
-            params = configOrganizer.fetch_config(params)
+            params = configContainer.fetch_config(params)
 
         assert_param(param=params, field='hidden_dim', field_type=int)
         assert_param(param=params, field='input_dim', field_type=int)

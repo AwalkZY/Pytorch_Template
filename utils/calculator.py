@@ -77,22 +77,24 @@ def calculate_iou2d(box0, box1):
     return calculate_intersection2d(box0, box1) / calculate_union2d(box0, box1)
 
 
-def calculate_iou1d(pred_head, pred_tail, true_head, true_tail):
+def calculate_iou1d(pred_first, pred_last, true_first, true_last):
     """
         calculate temporal intersection over union
     """
-    if type(pred_head) is torch.Tensor:
-        pred_head = pred_head.cpu().numpy()
-        pred_tail = pred_tail.cpu().numpy()
-        true_head = true_head.cpu().numpy()
-        true_tail = true_tail.cpu().numpy()
-    elif type(pred_head) is list:
-        pred_head = np.array(pred_head)
-        pred_tail = np.array(pred_tail)
-        true_head = np.array(true_head)
-        true_tail = np.array(true_tail)
-    union = (np.min(np.stack([pred_head, true_head], 0), 0), np.max(np.stack([pred_tail, true_tail], 0), 0))
-    inter = (np.max(np.stack([pred_head, true_head], 0), 0), np.min(np.stack([pred_tail, true_tail], 0), 0))
+    if type(pred_first) is torch.Tensor:
+        pred_first = pred_first.cpu().numpy()
+        pred_last = pred_last.cpu().numpy()
+        true_first = true_first.cpu().numpy()
+        true_last = true_last.cpu().numpy()
+    elif type(pred_first) is list:
+        pred_first = np.array(pred_first)
+        pred_last = np.array(pred_last)
+        true_first = np.array(true_first)
+        true_last = np.array(true_last)
+    pred_first, pred_last = pred_first.astype(float), pred_last.astype(float)
+    true_first, true_last = true_first.astype(float), true_last.astype(float)
+    union = (np.min(np.stack([pred_first, true_first], 0), 0), np.max(np.stack([pred_last, true_last], 0), 0))
+    inter = (np.max(np.stack([pred_first, true_first], 0), 0), np.min(np.stack([pred_last, true_last], 0), 0))
     iou = 1.0 * (inter[1] - inter[0] + 1) / (union[1] - union[0] + 1)
     iou[union[1] - union[0] < -1e-5] = 0
     iou[iou < 0] = 0.0
@@ -276,7 +278,12 @@ def calculate_mAP(det_boxes, det_labels, det_scores, true_boxes, true_labels, tr
 
 
 if __name__ == "__main__":
-    a1 = torch.tensor([[0, 0, 1, 2], [2, 3, 4, 5]])
-    a2 = torch.tensor([[0, 0, 3, 6]])
-    print(find_jaccard_overlap(a1, a2))
-
+    # a1 = torch.tensor([[0, 0, 1, 2], [2, 3, 4, 5]])
+    # a2 = torch.tensor([[0, 0, 3, 6]])
+    # print(find_jaccard_overlap(a1, a2))
+    pred_head = [0, 2]
+    pred_tail = [1, 3]
+    true_head = [0, 3]
+    true_tail = [1, 4]
+    print(calculate_iou1d(pred_head, pred_tail,
+                          true_head, true_tail))

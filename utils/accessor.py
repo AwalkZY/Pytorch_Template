@@ -15,14 +15,27 @@ def save_json(content, filename):
         json.dump(content, json_file)
 
 
-def save_model(model, path):
-    print('Model saved to path: {}'.format(path))
-    torch.save(model.state_dict(), path)
+def create_checkpoint_dir():
+    if not os.path.exists("saved"):
+        os.mkdir("saved")
 
 
-def load_model(model, path):
-    print('Model loaded from path: {}'.format(path))
-    model.load_state_dict(torch.load(path))
+def save_model(model, checkpoint_name, other_states=None):
+    create_checkpoint_dir()
+    print('Model saved as: {}'.format(checkpoint_name))
+    saved_dict = {
+        "model_parameter": model.state_dict()
+    }
+    if other_states is not None:
+        saved_dict.update(other_states)
+    torch.save(saved_dict, "saved/"+checkpoint_name)
+
+
+def load_model(model, checkpoint_name):
+    print('Model loaded from {}'.format(checkpoint_name))
+    loaded_dict = torch.load("saved/" + checkpoint_name)
+    model.load_state_dict(loaded_dict["model_parameter"])
+    return loaded_dict
 
 
 def create_file(path):

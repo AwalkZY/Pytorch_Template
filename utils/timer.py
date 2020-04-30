@@ -19,14 +19,24 @@ def time_since(since, percent):
 class Timer(object):
     def __init__(self):
         super().__init__()
+        self.start_time = self.last_time = None
+        self.reset()
+
+    def reset(self):
         self.last_time = time.time()
         self.start_time = time.time()
 
-    def time_difference(self, percentage=-1.0):
+    @property
+    def elapsed_total_time(self):
+        return time.time() - self.start_time
+
+    @property
+    def elapsed_interval(self):
         current_time = time.time()
-        difference = current_time - self.last_time
+        interval = current_time - self.last_time
         self.last_time = current_time
-        if percentage < 0:
-            return difference
-        else:
-            return 'Running Time: {} ({}%)'.format(time_since(self.start_time, percentage), percentage * 100)
+        return interval
+
+    def show_progress(self, percentage):
+        return 'Running Time: {} ({}%)'.format(time_since(self.start_time, percentage), percentage * 100)
+

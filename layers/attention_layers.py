@@ -50,16 +50,24 @@ class ScaledDotProductAttention(nn.Module):
     def __init__(self):
         super().__init__()
         self.attention_weight = None
+    """
+        First Config (For Multi-head Attention):
+            Query: [batch_size, head_num, time_step, key_dim]
+            Key: [batch_size, head_num, time_step, key_dim]
+            Value: [batch_size, head_num, time_step, value_dim]
+            Key_mask: [batch_size, time_step, time_step]
+        Second Config (For normal method):
+            Query: [batch_size, time_step, key_dim]
+            Key: [batch_size, time_step, key_dim]
+            Value: [batch_size, time_step, value_dim]
+            Key_mask: [batch_size, time_step]
+    """
 
-    # Query: [batch_size, time_step, query_len, key_dim]
-    # Key: [batch_size, time_step, key_len, key_dim]
-    # Value: [batch_size, time_step, key_len, value_dim]
-    # Key_mask: [batch_size, time_step, key_len]
     def forward(self, query, key, value, key_mask=None, dropout=None):
         out = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(query.size(-1))
-        # Out: [batch_size, time_step, query_len, key_len]
+        # Out: [batch_size, head_num, time_step, time_step]
         if key_mask is not None:
-            key_mask = key_mask.unsqueeze(2)   # Key_mask: [batch_size, time_step, 1, key_len]
+            key_mask = key_mask.unsqueeze(1)
             out = out.masked_fill(key_mask == 0, -1e30)
         attn = F.softmax(out, dim=-1)
         if dropout is not None:
@@ -90,12 +98,9 @@ class MultiHeadAttention(nn.Module):
     # Query: [batch_size, time_step, input_dim]
     # Key: [batch_size, time_step, input_dim]
     # Value: [batch_size, time_step, input_dim]
-    # Key_mask: [batch_size, time_step]
+    # Key_mask: [batch_size, time_step, time_step]
     def forward(self, query_input, key_input, value_input, key_mask=None):
         batch_size = query_input.size(0)
-        if key_mask is not None:
-            key_mask = key_mask.unsqueeze(dim=1)
-            # key_mask = key_mask.unsqueeze(dim=1).view(batch_size, 1, -1).repeat(1, self.params['head_num'], 1)
         multi_head_query = self.query_head(query_input).contiguous().view(batch_size, -1, self.params['head_num'],
                                                                           self.params['hidden_dim']).transpose(1, 2)
         multi_head_key = self.key_head(key_input).contiguous().view(batch_size, -1, self.params['head_num'],
