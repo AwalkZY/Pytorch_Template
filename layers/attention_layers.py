@@ -89,10 +89,10 @@ class MultiHeadAttention(nn.Module):
     # Key_mask: [batch_size, query_len, key_value_len] / [batch_size, key_value_len]
     def forward(self, query_input, key_input, value_input, key_mask=None):
 
+        if (key_mask is not None) and (key_mask.dim() != key_input.dim()):
+            key_mask = key_mask.unsqueeze(1)
         if key_mask is not None:
             key_mask = key_mask.unsqueeze(1)
-            if key_mask.dim() != key_input.dim():
-                key_mask = key_mask.unsqueeze(1)
         batch_size = query_input.size(0)
         multi_head_query = self.query_head(query_input).contiguous().view(batch_size, -1, self.params['head_num'],
                                                                           self.params['hidden_dim']).transpose(1, 2)
