@@ -88,8 +88,11 @@ class MultiHeadAttention(nn.Module):
     # Value: [batch_size, key_value_len, input_dim]
     # Key_mask: [batch_size, query_len, key_value_len] / [batch_size, key_value_len]
     def forward(self, query_input, key_input, value_input, key_mask=None):
-        if (key_mask is not None) and (key_mask.dim() != key_input.dim()):
+
+        if key_mask is not None:
             key_mask = key_mask.unsqueeze(1)
+            if key_mask.dim() != key_input.dim():
+                key_mask = key_mask.unsqueeze(1)
         batch_size = query_input.size(0)
         multi_head_query = self.query_head(query_input).contiguous().view(batch_size, -1, self.params['head_num'],
                                                                           self.params['hidden_dim']).transpose(1, 2)
@@ -97,8 +100,7 @@ class MultiHeadAttention(nn.Module):
                                                                     self.params['hidden_dim']).transpose(1, 2)
         multi_head_value = self.value_head(value_input).contiguous().view(batch_size, -1, self.params['head_num'],
                                                                           self.params['hidden_dim']).transpose(1, 2)
-        ans = self.attention(multi_head_query, multi_head_key, multi_head_value, key_mask.unsqueeze(1),
-                             dropout=self.dropout)
+        ans = self.attention(multi_head_query, multi_head_key, multi_head_value, key_mask, dropout=self.dropout)
         self.attention_weight = self.attention.attention_weight
         ans = ans.transpose(1, 2).contiguous().view(batch_size, -1, self.params['hidden_dim'] * self.params['head_num'])
         # Return: [batch_size, query_len, value_dim]
