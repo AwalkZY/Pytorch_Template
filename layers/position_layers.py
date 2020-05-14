@@ -8,19 +8,17 @@ from utils.asserter import assert_param
 
 class PositionEncoder(nn.Module):
     """Implement the PE function."""
+
     def __init__(self, params):
         assert_param(param=params, field_type=int, field="input_dim")
-        if "dropout" not in params:
-            params["dropout"] = 0.0
         if "max_len" not in params:
             params["max_len"] = 5000
         super().__init__()
-        self.dropout = nn.Dropout(p=params['dropout'])
 
         # Compute the positional encodings once in log space.
         pos_encoding = torch.zeros(params['max_len'], params['input_dim'])
-        position = torch.arange(0, params['max_len']).unsqueeze(1)
-        div_term = torch.exp(torch.arange(0, params['input_dim'], 2) *
+        position = torch.arange(0., params['max_len']).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0., params['input_dim'], 2) *
                              -(math.log(10000.0) / params['input_dim']))
         pos_encoding[:, 0::2] = torch.sin(position * div_term)
         pos_encoding[:, 1::2] = torch.cos(position * div_term)
@@ -28,8 +26,24 @@ class PositionEncoder(nn.Module):
         self.register_buffer('pos_encoding', pos_encoding)
 
     def forward(self, x):
-        x = x + self.pos_encoding[:, :x.size(1)]
-        return self.dropout(x)
+        return self.pos_encoding[:, :x.size(1)]
+
+
+class ArbitraryPositionEncoder(nn.Module):
+    """Implement the PE function."""
+
+    def __init__(self, params):
+        assert_param(param=params, field_type=int, field="input_dim")
+        super().__init__()
+        self.params = params
+        self.div_term = torch.exp(torch.arange(0, params['input_dim'], 2) *
+                                  -(math.log(10000.0) / params['input_dim'])).requires_grad_(False)
+
+    def forward(self, x):
+        pos_encoding = torch.zeros(x.size(0), self.params['input_dim']).to(x.device)
+        pos_encoding[:, 0::2] = torch.sin(x.unsqueeze(1) * self.div_term.clone().detach_().to(x.device))
+        pos_encoding[:, 1::2] = torch.cos(x.unsqueeze(1) * self.div_term.clone().detach_().to(x.device))
+        return pos_encoding
 
 
 class PositionWiseFeedForward(nn.Module):
@@ -54,15 +68,17 @@ class PositionWiseFeedForward(nn.Module):
 
 
 if __name__ == "__main__":
-    import matplotlib.pyplot as plt
+    # import matplotlib.pyplot as plt
     import numpy as np
 
-    plt.figure(figsize=(15, 5))
+    # plt.figure(figsize=(15, 5))
     pe = PositionEncoder({
         "input_dim": 20,
         "max_len": 5000
     })
+    print(pe.pos_encoding.size())
     y = pe.forward(torch.zeros(1, 100, 20))
-    plt.plot(np.arange(100), y[0, :, 4:8].data.numpy())
-    plt.legend(["dim %d" % p for p in [4, 5, 6, 7]])
-    plt.show()
+    # plt.plot(np.arange(100), y[0, :, 4:8].data.numpy())
+    # plt.legend(["dim %d" % p for p in [4, 5, 6, 7]])
+    # plt.show()
+    print(y.size())

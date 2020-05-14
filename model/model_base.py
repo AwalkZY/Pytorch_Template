@@ -10,6 +10,3 @@ class BaseModel(nn.Module):
 
     def sample(self, *inputs):
         raise NotImplementedError
-
-    def calculate_loss(self, *inputs):
-        raise NotImplementedError

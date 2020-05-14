@@ -2,7 +2,6 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
 from utils.asserter import assert_param
 from utils.helper import sequence_mask
 
@@ -10,65 +9,53 @@ from utils.helper import sequence_mask
 class TanhAttention(nn.Module):
     def __init__(self, params):
         super().__init__()
-        assert_param(param=params, field='input_dim', field_type=int)
-        assert_param(param=params, field='memory_dim', field_type=int)
-        assert_param(param=params, field='target_dim', field_type=int)
+        # self.dropout = nn.Dropout(dropout)
+        assert_param(params, "input_dim", int)
+        assert_param(params, "memory_dim", int)
+        assert_param(params, "hidden_dim", int)
 
-        self.input_part = nn.Linear(params['input_dim'], params['target_dim'], bias=True)
-        self.memory_part = nn.Linear(params['memory_dim'], params['target_dim'], bias=False)
-        self.final = nn.Linear(params['target_dim'], 1, bias=False)
+        self.linear_query = nn.Linear(params["input_dim"], params["hidden_dim"], bias=True)
+        self.linear_memory = nn.Linear(params["memory_dim"], params["hidden_dim"], bias=False)
+        self.linear_final = nn.Linear(params["hidden_dim"], 1, bias=False)
         self.attention_weight = None
 
-    def forward(self, inputs, memory, input_lengths=None, memory_lengths=None):
-        inputs_compact = inputs.view(-1, inputs.size(-2), inputs.size(-1))
-        memory_compact = memory.view(-1, memory.size(-2), memory.size(-1))
-        input_item = self.input_part(inputs_compact)  # [batch_size, input_length, target_dimension]
-        memory_item = self.memory_part(memory_compact)  # [batch_size, memory_length, target_dimension]
-        items = input_item.unsqueeze(2) + memory_item.unsqueeze(1)
-        result_shape = tuple(list(inputs.size()[:-1]) + [memory.size(-1)])
-        score_shape = tuple(list(inputs.size()[:-1]) + [memory.size(-2)])
-        # [batch_size, input_length, memory_length, target_dimension]
-        attention_score = self.final(torch.tanh(items)).squeeze(-1)  # [batch_size, input_length, memory_length]
-        if input_lengths is not None:
-            input_lengths = input_lengths.contiguous().view(-1)
-            score_mask = sequence_mask(input_lengths,
-                                       attention_score.size(1)).unsqueeze(-1).repeat(1, 1, attention_score.size(-1))
-            attention_score = attention_score.masked_fill(score_mask == 0, -1e30)
-        if memory_lengths is not None:
-            memory_lengths = memory_lengths.contiguous().view(-1)
-            score_mask = sequence_mask(memory_lengths,
-                                       attention_score.size(2)).unsqueeze(1).repeat(1, attention_score.size(1), 1)
-            attention_score = attention_score.masked_fill(score_mask == 0, -1e30)
-        attention_weight = F.softmax(attention_score, -1)
-        attention_result = torch.matmul(attention_weight,
-                                        memory_compact).view(result_shape)
-        self.attention_weight = attention_weight.view(score_shape)
-        return attention_result  # [batch_size, input_length, target_dimension]
+    def forward(self, x, memory, memory_mask=None):
+        item1 = self.linear_query(x)  # [nb, len1, d]
+        item2 = self.linear_memory(memory)  # [nb, len2, d]
+        # print(item1.shape, item2.shape)
+        item = item1.unsqueeze(2) + item2.unsqueeze(1)  # [nb, len1, len2, d]
+        self.attention_weight = self.linear_final(torch.tanh(item)).squeeze(-1)  # [nb, len1, len2]
+        if memory_mask is not None:
+            memory_mask = memory_mask.unsqueeze(1)  # [nb, 1, len2]
+            self.attention_weight = self.attention_weight.masked_fill(memory_mask == 0, float('-inf'))
+        self.attention_weight = F.softmax(self.attention_weight, -1)
+        return torch.matmul(self.attention_weight, memory)  # [nb, len1, d]
 
 
 class ScaledDotProductAttention(nn.Module):
     def __init__(self):
         super().__init__()
         self.attention_weight = None
+
     """
         First Config (For Multi-head Attention):
-            Query: [batch_size, head_num, time_step, key_dim]
-            Key: [batch_size, head_num, time_step, key_dim]
-            Value: [batch_size, head_num, time_step, value_dim]
-            Key_mask: [batch_size, time_step, time_step]
+            Query: [batch_size, head_num, query_len, key_dim]
+            Key: [batch_size, head_num, key_value_len, key_dim]
+            Value: [batch_size, head_num, key_value_len, value_dim]
+            Key_mask: [batch_size, head_num, query_len, key_value_len] / [batch_size, head_num, key_value_len]
         Second Config (For normal method):
-            Query: [batch_size, time_step, key_dim]
-            Key: [batch_size, time_step, key_dim]
-            Value: [batch_size, time_step, value_dim]
-            Key_mask: [batch_size, time_step]
+            Query: [batch_size, query_len, key_dim]
+            Key: [batch_size, key_value_len, key_dim]
+            Value: [batch_size, key_value_len, value_dim]
+            Key_mask: [batch_size, query_len, key_value_len] / [batch_size, key_value_len]
     """
 
     def forward(self, query, key, value, key_mask=None, dropout=None):
-        out = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(query.size(-1))
-        # Out: [batch_size, head_num, time_step, time_step]
-        if key_mask is not None:
+        if (key_mask is not None) and (key_mask.dim() != key.dim()):
             key_mask = key_mask.unsqueeze(1)
-            out = out.masked_fill(key_mask == 0, -1e30)
+        out = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(query.size(-1))
+        # Out: [batch_size, head_num, query_len, key_len] / [bs, query_len, key_len]
+        out = out.masked_fill(key_mask == 0, -1e30)
         attn = F.softmax(out, dim=-1)
         if dropout is not None:
             attn = dropout(attn)
@@ -95,11 +82,13 @@ class MultiHeadAttention(nn.Module):
         self.out = nn.Linear(params['input_dim'], params['input_dim'])
         self.attention_weight = None
 
-    # Query: [batch_size, time_step, input_dim]
-    # Key: [batch_size, time_step, input_dim]
-    # Value: [batch_size, time_step, input_dim]
-    # Key_mask: [batch_size, time_step, time_step]
+    # Query: [batch_size, query_len, input_dim]
+    # Key: [batch_size, key_value_len, input_dim]
+    # Value: [batch_size, key_value_len, input_dim]
+    # Key_mask: [batch_size, query_len, key_value_len] / [batch_size, key_value_len]
     def forward(self, query_input, key_input, value_input, key_mask=None):
+        if (key_mask is not None) and (key_mask.dim() != key_input.dim()):
+            key_mask = key_mask.unsqueeze(1)
         batch_size = query_input.size(0)
         multi_head_query = self.query_head(query_input).contiguous().view(batch_size, -1, self.params['head_num'],
                                                                           self.params['hidden_dim']).transpose(1, 2)
@@ -107,10 +96,11 @@ class MultiHeadAttention(nn.Module):
                                                                     self.params['hidden_dim']).transpose(1, 2)
         multi_head_value = self.value_head(value_input).contiguous().view(batch_size, -1, self.params['head_num'],
                                                                           self.params['hidden_dim']).transpose(1, 2)
-        ans = self.attention(multi_head_query, multi_head_key, multi_head_value, key_mask, dropout=self.dropout)
+        ans = self.attention(multi_head_query, multi_head_key, multi_head_value, key_mask.unsqueeze(1),
+                             dropout=self.dropout)
         self.attention_weight = self.attention.attention_weight
         ans = ans.transpose(1, 2).contiguous().view(batch_size, -1, self.params['hidden_dim'] * self.params['head_num'])
-        # Return: [batch_size, time_step, value_dim]
+        # Return: [batch_size, query_len, value_dim]
         return self.out(ans)
 
 

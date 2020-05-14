@@ -7,3 +7,9 @@ class BaseTrainer(object):
 
     def evaluate(self):
         raise NotImplementedError
+
+    def validate(self):
+        raise NotImplementedError
+
+    def calculate_loss(self, *inputs):
+        raise NotImplementedError
