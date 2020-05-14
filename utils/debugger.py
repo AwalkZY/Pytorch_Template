@@ -19,27 +19,21 @@ class Debugger:
         create_file(filename)
         handler = logging.FileHandler(filename)
         handler.setLevel(logging.INFO)
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        formatter = logging.Formatter('%(asctime)s - %(funcName)s - %(levelname)s - %(message)s')
         handler.setFormatter(formatter)
         self.logger.addHandler(handler)
         console = logging.StreamHandler()
         console.setLevel(logging.INFO)
         self.logger.addHandler(console)
 
-    def info(self, *inputs):
-        self.logger.info(inputs)
-
-    def warning(self, *inputs):
-        self.logger.warning(inputs)
-
-    def debug(self, *inputs):
-        self.logger.debug(inputs)
+        self.info = self.logger.info
+        self.debug = self.logger.debug
+        self.exception = self.logger.exception
+        self.warning = self.logger.warning
+        self.error = self.logger.error
 
     def print_divider(self):
-        self.info("=" * 60)
-
-    def exception(self, *inputs):
-        self.logger.exception(inputs)
+        self.logger.info("=" * 60)
 
 
 if __name__ == "__main__":

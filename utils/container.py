@@ -1,4 +1,4 @@
-from utils.accessor import load_json
+from utils.accessor import load_json, load_yaml
 
 
 class ConfigContainer(object):
@@ -7,12 +7,12 @@ class ConfigContainer(object):
         self.config = {}
 
     def load_config(self, path, name):
-        config = load_json("./config/" + path)
+        config = load_yaml("./config/" + path + ".yaml")
         self.config.update({name: config})
         return self.config[name]
 
     def flatten_config(self, path, prefix, common_name):
-        config = load_json("./config/" + path)
+        config = load_yaml("./config/" + path + ".yaml")
         assert common_name in config, "Invalid common config name!"
         common_config = config[common_name]
         for configName in config:

@@ -81,6 +81,7 @@ def calculate_iou1d(pred_first, pred_last, true_first, true_last):
     """
         calculate temporal intersection over union
     """
+    return_type = type(pred_first)
     if type(pred_first) is torch.Tensor:
         pred_first = pred_first.cpu().numpy()
         pred_last = pred_last.cpu().numpy()
@@ -98,7 +99,11 @@ def calculate_iou1d(pred_first, pred_last, true_first, true_last):
     iou = 1.0 * (inter[1] - inter[0] + 1) / (union[1] - union[0] + 1)
     iou[union[1] - union[0] < -1e-5] = 0
     iou[iou < 0] = 0.0
-    return torch.tensor(iou)
+    if return_type is torch.Tensor:
+        return torch.tensor(iou)
+    elif return_type is list:
+        return list(iou)
+    return iou
 
 
 def find_intersection(set_1, set_2):

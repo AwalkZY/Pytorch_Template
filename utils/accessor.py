@@ -1,8 +1,13 @@
 import json
 import os
 import pickle
-
+import yaml
 import torch
+
+
+def load_yaml(filename):
+    with open(filename, "r") as yaml_file:
+        return yaml.load(yaml_file)
 
 
 def load_json(filename):
@@ -28,7 +33,7 @@ def save_model(model, checkpoint_name, other_states=None):
     }
     if other_states is not None:
         saved_dict.update(other_states)
-    torch.save(saved_dict, "saved/"+checkpoint_name)
+    torch.save(saved_dict, "saved/" + checkpoint_name)
 
 
 def load_model(model, checkpoint_name):
@@ -52,3 +57,7 @@ def save_pickle(obj, filename):
 def load_pickle(filename):
     with open(filename, "rb") as pickle_file:
         return pickle.load(pickle_file)
+
+
+if __name__ == "__main__":
+    print(load_yaml("../config/nad.yaml"))

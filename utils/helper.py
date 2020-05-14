@@ -1,6 +1,7 @@
 import math
 
 import torch
+import torchsnooper
 from torch import nn
 import numpy as np
 import copy
@@ -14,14 +15,14 @@ def clones(module, number):
 
 def random_mask(lengths, max_len, mask_nums):
     batch_size = lengths.size(0)
-    prob = torch.rand(batch_size, max_len)
+    prob = torch.rand(batch_size, max_len).to(lengths.device)
     valid_mask = sequence_mask(lengths, max_len)
-    prob.masked_fill_(1 - valid_mask, 0.0)
+    prob.masked_fill_(~valid_mask, 0.0)
     _, idx = torch.sort(prob, descending=True)
-    mask_idx = [torch.tensor(idx[:mask_nums[batch]]) for batch in range(batch_size)]
-    mask_idx = [torch.cat([mask,
-                           torch.tensor([mask[0]] * (max_len - mask_nums[batch]))])
-                for batch, mask in enumerate(mask_idx)]
+    mask_idx = [idx[batch][:mask_nums[batch]] for batch in range(batch_size)]
+    mask_idx = torch.stack([torch.cat([mask,
+                                       sample(mask, max_len - mask_nums[batch])])
+                            for batch, mask in enumerate(mask_idx)], dim=0)
     return mask_idx
 
 
@@ -70,18 +71,36 @@ def sample(data, num_sample, accept_probability=1, default=None, weight=None, re
             weight = weight.cpu().numpy()
         weight = weight / np.sum(weight)
     if np.random.rand() <= accept_probability:
-        return torch.tensor(np.random.choice(data, num_sample, replace=replace, p=weight))
+        idx = np.random.choice(np.arange(len(data)), int(num_sample), replace=replace, p=weight)
+        if type(data) is list:
+            return list(np.array(data)[idx])
+        elif type(data) in [np.ndarray, torch.Tensor]:
+            return data[idx]
+        raise NotImplementedError
+        # return torch.tensor(np.random.choice(data, num_sample, replace=replace, p=weight))
     else:
         return default
 
 
+def calc_ends(center, length, min_pos=None, max_pos=None):
+    start = center - length / 2.0
+    end = center + length / 2.0
+    if (min_pos is not None) or (max_pos is not None):
+        assert (min_pos is not None) and (max_pos is not None), "Invalid parameters"
+        start = math.floor(max(min(start, max_pos - 1), min_pos))
+        end = math.ceil(max(min(end, max_pos), min_pos + 1))
+    return start, end
+
+
 def make_unidirectional_mask(pad_mask):
     """Generate Unidirectional Mask considering both pad and future positions"""
-    # param: pad_mask in shape (batch_size, time_step)
+    # param: pad_mask in shape (batch_size, 1, time_step) / (batch_size, time_step)
     # no_peak_mask in shape (1, time_step, time_step)
     if pad_mask is None:
         return None
-    return pad_mask.unsqueeze(-2) & no_peak_mask(pad_mask.size(1))
+    if pad_mask.dim() == 2:
+        pad_mask = pad_mask.unsqueeze(1)
+    return pad_mask.bool() & no_peak_mask(pad_mask.size(-1)).to(pad_mask.device)
 
 
 def apply_to_sample(f, sample):
@@ -101,9 +120,9 @@ def apply_to_sample(f, sample):
     return _apply(sample)
 
 
-def move_to_cuda(sample):
+def move_to_cuda(sample, device):
     def _move_to_cuda(tensor):
-        return tensor.cuda()
+        return tensor.to(device)
 
     return apply_to_sample(_move_to_cuda, sample)
 
@@ -136,6 +155,6 @@ def worker_init_fn(worker_id):
 
 if __name__ == "__main__":
     # print(random_mask(torch.tensor([4, 5, 2, 3]), 0.5, 6))
-    # print(no_peak_mask(20).size())
+    print(no_peak_mask(20).size())
     # print(sequence_mask(np.array([4, 2, 3]), 5))
     pass
