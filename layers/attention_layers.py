@@ -55,7 +55,8 @@ class ScaledDotProductAttention(nn.Module):
             key_mask = key_mask.unsqueeze(1)
         out = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(query.size(-1))
         # Out: [batch_size, head_num, query_len, key_len] / [bs, query_len, key_len]
-        out = out.masked_fill(key_mask == 0, -1e30)
+        if key_mask is not None:
+            out = out.masked_fill(key_mask == 0, -1e30)
         attn = F.softmax(out, dim=-1)
         if dropout is not None:
             attn = dropout(attn)
