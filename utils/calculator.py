@@ -2,10 +2,6 @@ import torch
 import numpy as np
 
 
-def max_min_norm(x: torch.Tensor, dim):
-    return (x - x.min(dim=dim, keepdim=True)[0]) / (x.max(dim=dim, keepdim=True)[0] - x.min(dim=dim, keepdim=True)[0])
-
-
 def calculate_dist(x, y, dist):
     assert x.size(-1) == y.size(-1), "Incompatible dimension of two matrix! {} and {} are given. ".method(x.size(),
                                                                                                           y.size())

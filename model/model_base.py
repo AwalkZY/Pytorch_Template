@@ -8,5 +8,5 @@ class BaseModel(nn.Module):
     def forward(self, *inputs):
         raise NotImplementedError
 
-    def inference(self, *inputs):
+    def sample(self, *inputs):
         raise NotImplementedError

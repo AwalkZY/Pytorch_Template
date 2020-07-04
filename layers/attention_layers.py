@@ -7,42 +7,35 @@ from utils.helper import sequence_mask
 
 
 class TanhAttention(nn.Module):
-    def __init__(self, d_model):
+    def __init__(self, params):
         super().__init__()
         # self.dropout = nn.Dropout(dropout)
-        self.ws1 = nn.Linear(d_model, d_model, bias=True)
-        self.ws2 = nn.Linear(d_model, d_model, bias=False)
-        self.wst = nn.Linear(d_model, 1, bias=False)
+        assert_param(params, "input_dim", int)
+        assert_param(params, "memory_dim", int)
+        assert_param(params, "hidden_dim", int)
 
-    def reset_parameters(self):
-        self.ws1.reset_parameters()
-        self.ws2.reset_parameters()
-        self.wst.reset_parameters()
+        self.linear_query = nn.Linear(params["input_dim"], params["hidden_dim"], bias=True)
+        self.linear_memory = nn.Linear(params["memory_dim"], params["hidden_dim"], bias=False)
+        self.linear_final = nn.Linear(params["hidden_dim"], 1, bias=False)
+        self.attention_weight = None
 
-    def forward(self, x, memory, memory_mask=None, fast_weights=None, **kwargs):
-        if fast_weights is None:
-            item1 = self.ws1(x)  # [nb, len1, d]
-            item2 = self.ws2(memory)  # [nb, len2, d]
-            # print(item1.shape, item2.shape)
-            item = item1.unsqueeze(2) + item2.unsqueeze(1)  # [nb, len1, len2, d]
-            S_logit = self.wst(torch.tanh(item)).squeeze(-1)  # [nb, len1, len2]
-        else:
-            item1 = F.linear(x, fast_weights['ws1.weight'], fast_weights['ws1.bias'])  # [nb, len1, d]
-            item2 = F.linear(memory, fast_weights['ws2.weight'])  # [nb, len2, d]
-            # print(item1.shape, item2.shape)
-            item = item1.unsqueeze(2) + item2.unsqueeze(1)  # [nb, len1, len2, d]
-            S_logit = F.linear(torch.tanh(item), fast_weights['wst.weight']).squeeze(-1)  # [nb, len1, len2]
+    def forward(self, x, memory, memory_mask=None):
+        item1 = self.linear_query(x)  # [nb, len1, d]
+        item2 = self.linear_memory(memory)  # [nb, len2, d]
+        # print(item1.shape, item2.shape)
+        item = item1.unsqueeze(2) + item2.unsqueeze(1)  # [nb, len1, len2, d]
+        self.attention_weight = self.linear_final(torch.tanh(item)).squeeze(-1)  # [nb, len1, len2]
         if memory_mask is not None:
             memory_mask = memory_mask.unsqueeze(1)  # [nb, 1, len2]
-            S_logit = S_logit.masked_fill(memory_mask == 0, float('-inf'))
-        S = F.softmax(S_logit, -1)
-        return torch.matmul(S, memory), S_logit  # [nb, len1, d], [nb, len1, len2]
+            self.attention_weight = self.attention_weight.masked_fill(memory_mask == 0, float('-inf'))
+        self.attention_weight = F.softmax(self.attention_weight, -1)
+        return torch.matmul(self.attention_weight, memory)  # [nb, len1, d]
 
 
 class ScaledDotProductAttention(nn.Module):
     def __init__(self):
         super().__init__()
-        self.attention_logit = self.attention_weight = None
+        self.attention_weight = None
 
     """
         First Config (For Multi-head Attention):
@@ -64,25 +57,11 @@ class ScaledDotProductAttention(nn.Module):
         # Out: [batch_size, head_num, query_len, key_len] / [bs, query_len, key_len]
         if key_mask is not None:
             out = out.masked_fill(key_mask == 0, -1e30)
-        self.attention_logit = out
         attn = F.softmax(out, dim=-1)
         if dropout is not None:
             attn = dropout(attn)
         self.attention_weight = attn
         return torch.matmul(attn, value)
-
-
-class SelfScaledDotAttention(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.attention = ScaledDotProductAttention()
-        self.attention_logit = self.attention_weight = None
-
-    def forward(self, inputs, inputs_mask=None, dropout=None):
-        ans = self.attention(inputs, inputs, inputs, inputs_mask, dropout)
-        self.attention_logit = self.attention.attention_logit
-        self.attention_weight = self.attention.attention_weight
-        return ans
 
 
 class MultiHeadAttention(nn.Module):

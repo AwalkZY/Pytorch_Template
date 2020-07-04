@@ -5,7 +5,7 @@ class BaseTrainer(object):
     def train(self):
         raise NotImplementedError
 
-    def evaluate(self, *inputs):
+    def evaluate(self):
         raise NotImplementedError
 
     def validate(self):
