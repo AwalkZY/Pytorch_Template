@@ -120,9 +120,9 @@ def apply_to_sample(f, sample):
     return _apply(sample)
 
 
-def move_to_cuda(sample, device):
+def move_to_cuda(sample):
     def _move_to_cuda(tensor):
-        return tensor.to(device)
+        return tensor.cuda()
 
     return apply_to_sample(_move_to_cuda, sample)
 
